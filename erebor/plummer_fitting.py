@@ -71,9 +71,12 @@ def fit_plummer(ra, dec, ndim=5, nwalkers=200, nsteps=600, nthreads=10, outfile=
             backend=backend
         )
 
-        pos, prob, state = sampler.run_mcmc(ics, 200)
-        sampler.reset()
-        print('Finished burn-in')
+        if restart:
+            pos = ics
+        else:
+            pos, prob, state = sampler.run_mcmc(ics, 200)
+            sampler.reset()
+            print('Finished burn-in')
 
         sampler.run_mcmc(pos, nsteps)
 
