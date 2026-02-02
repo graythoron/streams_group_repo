@@ -3,11 +3,10 @@ import numpy as np
 
 import astropy.units as u
 import astropy.coordinates as coords
-from astropy.table import Table, hstack
+from scipy.stats import binned_statistic
 
 from arviz import hdi, kde
 
-sys.path.append('/home/graythoron/projects/code')
 from bound_fraction import compute_boundness_recursive_BFE
 from plummer_fitting import fit_plummer
 
@@ -354,55 +353,43 @@ def plummer_profile_fit(
 
     return results
 
-def subfind_bound_fraction(self, strmID):
-    snapdata = self.reader.load_snapshot_data(nsnap=self.snap, reading=True, saving=False, center_on_host=True, units=True)
-    sf = self.reader.load_subfind(nsnap=self.snap)
+def r_half_density(r_half, center_pos, star_pos, dm_pos, star_mass, dm_mass, return_totals=True):
+    r_half_bins = np.linspace(0, 50*r_half, num=51)
+    star_dists = np.linalg.norm(star_pos-center_pos, axis=1)
+    dm_dists = np.linalg.norm(dm_pos-center_pos, axis=1)
 
-    particle_ids = snapdata['id']
+    if r_half<=0:
+        star_counts = np.zeros(50)*np.nan
+        star_mass_dist = np.zeros(50)*np.nan
+        dm_counts = np.zeros(50)*np.nan
+        dm_mass_dist = np.zeros(50)*np.nan
+    else:
+        star_counts = np.cumsum(np.histogram(
+            star_dists, 
+            r_half_bins
+        )[0])
+        star_mass_dist = np.cumsum(binned_statistic(
+            star_dists, 
+            star_mass, 'sum', 
+            r_half_bins
+        )[0])
+        dm_counts = np.cumsum(np.histogram(
+            dm_dists, 
+            r_half_bins
+        )[0])
+        dm_mass_dist = np.cumsum(binned_statistic(
+            dm_dists, 
+            dm_mass, 'sum', 
+            r_half_bins
+        )[0])
 
-    strm_idx = self.reader.load_stream_indices(strmID, self.plists['pkmassid'], self.plists['idacc'], particle_ids)
+    totals = np.zeros(4)
+    totals[0] = len(star_dists)
+    totals[1] = np.sum(star_mass)
+    totals[2] = len(dm_dists)
+    totals[3] = np.sum(dm_mass)
 
-    # starting from pkmassid, get last instance subhalo is descendant's first progenitor
-    index, desc, desc_first_prog = [strmID] * 3
-    time = self.tree.data['snum'][index]
-    
-    keys = ['desc', 'fpin']
-    while (index == desc_first_prog) and (time!=self.snap+1):
-        index = desc
-        desc = self.tree.data[keys[(time > self.snap)*1]][index]
-        desc_first_prog = self.tree.data[keys[(time <= self.snap)*1]][desc]
-        time = self.tree.data['snum'][desc]
-
-    final_tree_index = index
-
-    fof_group = self.tree.data['sgnr'][final_tree_index]
-    subhalo = self.tree.data['sbnr'][final_tree_index]
-    first_halo_in_fof = self.tree.data['sbnr'][self.tree.data['fhfg'][final_tree_index]]
-    #This line keeps breaking
-    assert first_halo_in_fof == sf.data['ffsh'][fof_group]
-
-    # get star particles in subhalo, taking advantage of data structure
-    start = np.sum(sf.data['flty'][:fof_group,4])
-    start += np.sum(sf.data['slty'][first_halo_in_fof:subhalo,4])
-    stop = start + np.sum(sf.data['slty'][subhalo,4])
-    ids_bound = particle_ids[start:stop]
-        
-    # guarantee only using particles from lists (no wind particles, radius cut)
-    bound_in_plists = np.isin(ids_bound, particle_ids[strm_idx])
-
-    # fraction of bound particles in merger
-    fbound_part = np.sum(bound_in_plists) / len(strm_idx)
-    fbound_mass = np.sum(snapdata['mass'][start:stop][bound_in_plists]) / np.sum(snapdata['mass'][strm_idx])
-    fbound_mass = fbound_mass.value
-
-    # machine precision kills sometimes
-    fbound_part = 1 if fbound_part > 1 else fbound_part
-    fbound_mass = 1 if fbound_mass > 1 else fbound_mass
-    
-    results_table = Table()
-    results_table['n_part'] = [len(strm_idx)]
-    results_table['f_bound_part'] = [fbound_part]
-    results_table['f_bound_mass'] = [fbound_mass]
-    return results_table
-
-
+    if return_totals:
+        return (star_counts, star_mass_dist, dm_counts, dm_mass_dist, totals)  
+    else:
+        return(star_counts, star_mass_dist, dm_counts, dm_mass_dist)
