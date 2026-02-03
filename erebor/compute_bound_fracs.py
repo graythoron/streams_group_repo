@@ -1,10 +1,7 @@
 from __future__ import annotations
 import logging, sys
 import numpy as np
-import agama
 from typing import Any
-
-
 
 # # 1. Create a custom handler that flushes after every log record is emitted
 class _LiveLogHandler(logging.StreamHandler):
@@ -63,7 +60,7 @@ def compute_iterative_boundness(
     """
     Compute boundness of DM (and optionally stars) via iterative unbinding.
     
-    Uses either Agama multipole expansion (BFE) or pyfalcon tree code to compute
+    Uses either pyfalcon tree code or Agama multipole expansion (BFE) to compute
     gravitational potential. Iteratively removes unbound particles until convergence.
     Boundness criterion: total energy = potential + kinetic < 0.
 
@@ -143,8 +140,6 @@ def compute_iterative_boundness(
     - For tree method: softening should ideally match simulation resolution. Make sure G is in right units. 
     - For BFE method: higher lmax = more accurate but slower        
     """
-    import agama
-    agama.setUnits(mass=1, length=1, velocity=1)
 
     # Input validation and normalization
     # ==================================
@@ -231,6 +226,9 @@ def compute_iterative_boundness(
         except ImportError:
             logger.info(f'falcON not available for tree method.')
             potential_compute_method = 'bfe'
+    if potential_compute_method == 'bfe':
+        import agama
+        agama.setUnits(mass=1, length=1, velocity=1)    
     
     # Setup logger
     logger = logging.getLogger('boundness')
@@ -387,7 +385,19 @@ def _find_center_position(
         print(f'Using the KDE center: {centroid}')
         pos_c = positions - centroid
 
-        dens = agama.Potential(type='Multipole', particles=(pos_c, masses), symmetry='n', lmax=kwargs.get('lmax', 8)).density(pos_c[:, :3])
+        if 'agama' in sys.modules:
+            dens = agama.Potential(type='Multipole', particles=(pos_c, masses), symmetry='n', lmax=kwargs.get('lmax', 8)).density(pos_c[:, :3])
+        elif 'pyfalcon' in sys.modules:
+            dens = pyfalcon.gravity(
+                pos_c, masses*kwargs.get('G', 4.30092e-6), 
+                eps=kwargs.get('softening_tree', 0.03), theta=0.4
+            )
+        else:
+            import pyfalcon
+            dens = pyfalcon.gravity(
+                pos_c, masses*kwargs.get('G', 4.30092e-6), 
+                eps=kwargs.get('softening_tree', 0.03), theta=0.4
+            )
         
         ## pick max of 1% particles or 20.
         Npick = max(20, int(len(dens)*0.01))

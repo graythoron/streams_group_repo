@@ -6,7 +6,7 @@ from scipy.stats import binned_statistic
 
 from arviz import hdi, kde
 
-from bound_fraction import compute_boundness_recursive_BFE
+from compute_bound_fracs import compute_iterative_boundness
 from plummer_fitting import fit_plummer
 
 def radius_mask(ra, dec, rad):
@@ -55,10 +55,10 @@ def bound_fraction(dark_pos, dark_vel, dark_masses, star_pos, star_vel, star_mas
         Star particle masses, (M_sun but Astropy units can be included). 
     center_pos : np.array-like with shape (3,), optional.
         The center of the progenitor (kpc but Astropy units can be included).
-        Default is None-type
+        Default is empty list-type
     center_vel : np.array-like with shape (3,), optional.
         The velocity of the progenitor (km/s but Astropy units can be included).
-        Default is None-type
+        Default is empty list-type
     methods : list or integer, optional.
         The methods for calculating the position and velocity of the center.
         Default value is None, which supplies four combinations of centering:
@@ -122,11 +122,11 @@ def bound_fraction(dark_pos, dark_vel, dark_masses, star_pos, star_vel, star_mas
 
     results_list = []
     # Choosing methods
-    if (center_vel == None) &(center_pos == None) & (methods == None):
+    if (center_vel == []) &(center_pos == []) & (methods == None):
         methods = [['star', True], ['star', False], ['both', True], ['both', False]]
-    elif (center_pos == None) & (methods == None):
+    elif (center_pos == []) & (methods == None):
         methods = [['star', True], ['both', True]]
-    elif (center_vel == None) & (methods == None):
+    elif (center_vel == []) & (methods == None):
         methods = [['star', True], ['star', False]]
     elif (methods == None):
         methods = [['star', True]]
@@ -135,7 +135,7 @@ def bound_fraction(dark_pos, dark_vel, dark_masses, star_pos, star_vel, star_mas
 
     #Several different centering methods are used in order to find the highest bound fraction
     for i in range(len(methods)):
-        results0 = compute_boundness_recursive_BFE(
+        results0 = compute_iterative_boundness(
                 dark_pos, dark_vel, dark_masses,
                 star_pos, star_vel, star_masses, 
                 center_on=methods[i][0], center_vel_with_KDE=methods[i][1],
