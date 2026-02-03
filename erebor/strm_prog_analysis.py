@@ -1,4 +1,3 @@
-import sys
 import numpy as np
 
 import astropy.units as u
@@ -170,8 +169,9 @@ def bound_fraction(dark_pos, dark_vel, dark_masses, star_pos, star_vel, star_mas
     return results
 
 def plummer_profile_fit(
-        star_pos, star_vel, star_bound, star_masses, center_pos, star_metals, 
-        coord_system='spherical', radius=1*u.kpc, num_radii=1, output_file="plummer_fit_out.h5"
+        star_pos, star_vel, star_bound, star_masses, center_pos, star_metals=[], 
+        coord_system='spherical', radius=1*u.kpc, num_radii=1, output_file="plummer_fit_out.h5", 
+        return_derived_quants = True
     ):
     '''
     Computes the plummer profile of a progenitor projected on to sky coordinates. 
@@ -190,8 +190,9 @@ def plummer_profile_fit(
         The mass of the star particles (M_sun)
     center_pos : np.array-like with shape (3,) with astropy units.
         The 3D position of the center of the progenitor. (kpc)
-    star_metals : np.array-like with shape (M, N).
+    star_metals : np.array-like with shape (M, N), optional.
         The metal abundances [M] of the star particles [N]
+        Default : []
     coord_system : string, optional. 
         The coordinate system in which to project the progenitor.
         Default : 'spherical'
@@ -207,6 +208,10 @@ def plummer_profile_fit(
     output_file : str
         The output path for the output from the plummer profile fitting proceedure 
         Default : "plummer_fit_out.h5"
+    return_derived_quants : bool
+        In addition to the fit, the results dictionary will return derived quantities
+        such as ang_dif and r_half.
+        Default : True
 
     Returns
     -------
@@ -230,7 +235,7 @@ def plummer_profile_fit(
         'lat_err' : np.array-like (2,) with astropy units.
             The one sigma error [below, above] on the latitude. (deg)
         'extension' : float with astropy units.
-            The half light radius of the plummer profile. (deg)
+            The semi-major axis of the plummer profile. (deg)
         'extension_err' : np.array-like (2,) with astropy units.
             The one sigma error [below, above] on the extension. (deg)
         'ellipticity' : float.
@@ -239,12 +244,24 @@ def plummer_profile_fit(
             1 is two paralell lines (so ellipitical it's only an ellipse at infinity)
         'ellipticity_err' : np.array-like (2,)
             The one sigma error [below, above] on the ellipticity.
-        'position_angle' :  float with astropy units
+        'position_angle' :  float with astropy units.
             The angle [N->E] of rotation of the plummer profile on the sky. (deg)
-        'position_angle_err' :
+        'position_angle_err' : np.array-like (2,) with astropy units.
             The one sigma error [below, above] on the position angle. (deg) 
         'fitted_metals' : np.array-like (M,)
             The median values of the metalicities of the fitted particles. 
+        'r_half' : float with astropy units. 
+            The physical azimuthally averaged r_half. (pc)
+            Optional with return_derived_quants = False
+        'r_half_err' : np.array-like (2,) with astropy units.
+            The one sigma error [below, above] on r_half. (deg)
+            Optional with return_derived_quants = False
+        'ang_dif' : float with astropy units. 
+            The angle between the proper motion and the postion angle. (deg)
+            Optional with return_derived_quants = False
+        'ang_dif_err' : np.array-like (2,) with astropy units.
+            The one sigma error [below, above] on ang_dif. (deg)
+            Optional with return_derived_quants = False
     '''
     assert len(star_pos) == len(star_vel)
     assert len(star_pos) == len(star_bound)
@@ -317,26 +334,34 @@ def plummer_profile_fit(
             ).T
             #Other useful quantities
             pm = np.array((
-                np.nanmean(star_skycoords.pm_lon[star_mask]), 
-                np.nanmean(star_skycoords.pm_lat[star_mask])
+                np.nanmean(star_skycoords.pm_lon.value[star_mask]), 
+                np.nanmean(star_skycoords.pm_lat.value[star_mask])
             ))
+            pm_ra_err = hdi(star_skycoords.pm_lon.value[star_mask & ~np.isnan(star_skycoords.pm_lon)], hdi_prob=0.68) - pm[0]
+            pm_dec_err = hdi(star_skycoords.pm_lat.value[star_mask & ~np.isnan(star_skycoords.pm_lat)], hdi_prob=0.68) - pm[1]
             rad_vel = np.nanmean(star_skycoords.radial_velocity[star_mask])
         else:
             print(f'Plummer profile fitting failed')
             fitting_result = np.zeros((5,3))
             pm = np.array((np.nan, np.nan))
+            pm_ra_err = np.array((np.nan, np.nan))
+            pm_dec_err = np.array((np.nan, np.nan))
             rad_vel = np.nan
     else:
         print(f'No stars within {num_radii} x {radius}')
         fitting_result = np.zeros((5,3))
         pm = np.array((np.nan, np.nan))
+        pm_ra_err = np.array((np.nan, np.nan))
+        pm_dec_err = np.array((np.nan, np.nan))
         rad_vel = np.nan
 
     results = {}
 
     results['ra'] = halo_skycoords.spherical.lon
     results['dec'] = halo_skycoords.spherical.lat
-    results['pm'] = pm
+    results['pm'] = pm * u.mas/u.yr
+    results['pm_ra_err'] = pm_ra_err * u.mas/u.yr
+    results['pm_dec_err'] = pm_dec_err * u.mas/u.yr
     results['rad_vel'] = rad_vel
     results['lon'] = fitting_result[0,0] * u.degree
     results['lon_err'] = fitting_result[0,1:] * u.degree
@@ -348,12 +373,96 @@ def plummer_profile_fit(
     results['ellipticity_err'] = fitting_result[3,1:]
     results['position_angle'] = fitting_result[4,0] * u.degree
     results['position_angle_err'] = fitting_result[4,1:] * u.degree
+
     if len(star_metals)>0:
         results['fitted_metals'] = np.nanmedian(star_metals.T[star_mask].T, axis=0)
+    
+    if return_derived_quants:
+        center_dist = np.linalg.norm(center_pos)
+        ext_in_rads = fitting_result[2,0] * np.pi/180
+
+        results['r_half'] = center_dist * np.tan(ext_in_rads) * fitting_result[3,0] * 1000 * u.pc
+        r_half_fact = center_dist * (np.pi/180) / np.cos(ext_in_rads)**2
+        results['r_half_err'] = (
+            np.linalg.norm(
+                (
+                    r_half_fact*fitting_result[2,1],
+                    fitting_result[3,1]/(2*np.sqrt(1-fitting_result[3,0]))
+                )
+            ),
+            np.linalg.norm(
+                (
+                    r_half_fact*fitting_result[2,2],
+                    fitting_result[3,2]/(2*np.sqrt(1-fitting_result[3,0])) 
+                )
+            )
+        )
+
+        angle_dif = np.abs(fitting_result[4,0] - np.arctan2(pm[1], pm[0])*180/np.pi)
+        results['angle_dif'] = np.abs(angle_dif-180*(angle_dif>90)-180*(angle_dif>270)) * u.degree
+        results['ang_dif_err'] = (
+            np.linalg.norm((
+                fitting_result[4,1], 
+                ((pm[0]/pm[1])/(1+(pm[0]/pm[1]))**2)*np.linalg.norm(
+                    ((
+                        pm_ra_err[0]/pm[0], 
+                        pm_dec_err[0]/pm[1]
+                    )), 
+                    axis=0
+                )*180/np.pi)
+            ),
+            np.linalg.norm((
+                fitting_result[4,2], 
+                ((pm[0]/pm[1])/(1+(pm[0]/pm[1]))**2)*np.linalg.norm(
+                    ((
+                        pm_ra_err[1]/pm[0], 
+                        pm_dec_err[1]/pm[1]
+                    )), 
+                    axis=0
+                )*180/np.pi)
+            )
+        ) * u.degree
 
     return results
 
-def r_half_density(r_half, center_pos, star_pos, dm_pos, star_mass, dm_mass, return_totals=True):
+def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses, return_totals=True):
+    '''
+    Calculates the cumulative distribution of stars and dark matter particles within 50 r_half.
+    Parameters
+    ----------
+    r_half : float.
+        The physical azimuthally averaged r_half.
+    center_pos : np.array-like with shape (3,).
+        The 3D position of the center of the progenitor. (same units as r_half)
+    star_pos : np.array-like with shape (N, 3) with astropy units.
+        The 3D positions of the star particles [N] with the origin at the GC. (same units as r_half)
+    dm_pos : np.array-like with shape (N, 3) with astropy units.
+        The 3D positions of the dark matter particles [M] with the origin at the GC. (same units as r_half)
+    star_masses : np.array-like with shape (N,).
+        The mass of the star particles (M_sun)
+    dm_masses : np.array-like with shape (M,).
+        The mass of the dark matter particles (M_sun)
+    return_totals : bool, optional.
+        Returns the total count of stars, dark matter, and the total mass
+        Default : True
+
+    Returns
+    -------
+    results : tuple (4 or 5 (if return_totals),)
+        [0] : np.array-like with shape (50,)
+            The cumulative count of star particles within 50 r_half with r_half intervals.
+        [1] : np.array-like with shape (50,)
+            The cumulative mass of star particles within 50 r_half with r_half intervals.
+        [2] : np.array-like with shape (50,)
+            The cumulative count of dark matter particles within 50 r_half with r_half intervals.
+        [3] : np.array-like with shape (50,)
+            The cumulative mass of dark matter particles within 50 r_half with r_half intervals.
+        [4] : np.array-like with shape (4,), optional with return_totals
+            [0] The total number of star particles
+            [1] The total mass of all star particles
+            [2] The total number of dark matter particles
+            [3] The total mass of all dark matter particles
+    '''
     r_half_bins = np.linspace(0, 50*r_half, num=51)
     star_dists = np.linalg.norm(star_pos-center_pos, axis=1)
     dm_dists = np.linalg.norm(dm_pos-center_pos, axis=1)
@@ -370,7 +479,7 @@ def r_half_density(r_half, center_pos, star_pos, dm_pos, star_mass, dm_mass, ret
         )[0])
         star_mass_dist = np.cumsum(binned_statistic(
             star_dists, 
-            star_mass, 'sum', 
+            star_masses, 'sum', 
             r_half_bins
         )[0])
         dm_counts = np.cumsum(np.histogram(
@@ -379,15 +488,15 @@ def r_half_density(r_half, center_pos, star_pos, dm_pos, star_mass, dm_mass, ret
         )[0])
         dm_mass_dist = np.cumsum(binned_statistic(
             dm_dists, 
-            dm_mass, 'sum', 
+            dm_masses, 'sum', 
             r_half_bins
         )[0])
 
     totals = np.zeros(4)
     totals[0] = len(star_dists)
-    totals[1] = np.sum(star_mass)
+    totals[1] = np.sum(star_masses)
     totals[2] = len(dm_dists)
-    totals[3] = np.sum(dm_mass)
+    totals[3] = np.sum(dm_masses)
 
     if return_totals:
         return (star_counts, star_mass_dist, dm_counts, dm_mass_dist, totals)  
