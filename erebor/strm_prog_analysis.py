@@ -425,7 +425,7 @@ def plummer_profile_fit(
 
     return results
 
-def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses, return_totals=True):
+def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses, n_splits=50, return_totals=True, return_cumulatives=True):
     '''
     Calculates the cumulative distribution of stars and dark matter particles within 50 r_half.
     Parameters
@@ -442,20 +442,26 @@ def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses,
         The mass of the star particles (M_sun)
     dm_masses : np.array-like with shape (M,).
         The mass of the dark matter particles (M_sun)
+    n_splits : int, optional.
+        Number of bins within 50 r_half.
+        Default : 50
     return_totals : bool, optional.
         Returns the total count of stars, dark matter, and the total mass
+        Default : True
+    return_cumulatives : bool, optional.
+        Returns the cumulative masses in 1, 3, 5, and 10 r_half.
         Default : True
 
     Returns
     -------
     results : tuple (4 or 5 (if return_totals),)
-        [0] : np.array-like with shape (50,)
+        [0] : np.array-like with shape (n_splits,)
             The cumulative count of star particles within 50 r_half with r_half intervals.
-        [1] : np.array-like with shape (50,)
+        [1] : np.array-like with shape (n_splits,)
             The cumulative mass of star particles within 50 r_half with r_half intervals.
-        [2] : np.array-like with shape (50,)
+        [2] : np.array-like with shape (n_splits,)
             The cumulative count of dark matter particles within 50 r_half with r_half intervals.
-        [3] : np.array-like with shape (50,)
+        [3] : np.array-like with shape (n_splits,)
             The cumulative mass of dark matter particles within 50 r_half with r_half intervals.
         [4] : np.array-like with shape (4,), optional with return_totals
             [0] The total number of star particles
@@ -463,15 +469,15 @@ def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses,
             [2] The total number of dark matter particles
             [3] The total mass of all dark matter particles
     '''
-    r_half_bins = np.linspace(0, 50*r_half, num=51)
+    r_half_bins = np.linspace(0, 50*r_half, num=n_splits+1)
     star_dists = np.linalg.norm(star_pos-center_pos, axis=1)
     dm_dists = np.linalg.norm(dm_pos-center_pos, axis=1)
 
     if r_half<=0:
-        star_counts = np.zeros(50)*np.nan
-        star_mass_dist = np.zeros(50)*np.nan
-        dm_counts = np.zeros(50)*np.nan
-        dm_mass_dist = np.zeros(50)*np.nan
+        star_counts = np.zeros(n_splits)*np.nan
+        star_mass_dist = np.zeros(n_splits)*np.nan
+        dm_counts = np.zeros(n_splits)*np.nan
+        dm_mass_dist = np.zeros(n_splits)*np.nan
     else:
         star_counts = np.cumsum(np.histogram(
             star_dists, 
@@ -497,8 +503,20 @@ def r_half_density(r_half, center_pos, star_pos, dm_pos, star_masses, dm_masses,
     totals[1] = np.sum(star_masses)
     totals[2] = len(dm_dists)
     totals[3] = np.sum(dm_masses)
+    
+    #cumulatives
+    cumulatives = np.zeros(4)
+    cumulatives[0] = np.sum(star_masses[star_dists<=r_half])
+    cumulatives[1] = np.sum(star_masses[star_dists<=3*r_half])
+    cumulatives[2] = np.sum(star_masses[star_dists<=5*r_half])
+    cumulatives[3] = np.sum(star_masses[star_dists<=10*r_half])
 
-    if return_totals:
+
+    if return_cumulatives & return_totals:
+        return (star_counts, star_mass_dist, dm_counts, dm_mass_dist, totals, cumulatives) 
+    elif return_totals:
         return (star_counts, star_mass_dist, dm_counts, dm_mass_dist, totals)  
+    elif return_cumulatives:
+        return (star_counts, star_mass_dist, dm_counts, dm_mass_dist, cumulatives)  
     else:
         return(star_counts, star_mass_dist, dm_counts, dm_mass_dist)

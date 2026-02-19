@@ -220,16 +220,6 @@ def compute_iterative_boundness(
         center_velocity = np.asarray(center_velocity)
         assert len(center_velocity) == 3, "center_velocity must be length 3"
     
-    if potential_compute_method == 'tree':
-        try:
-            import pyfalcon
-        except ImportError:
-            logger.info(f'falcON not available for tree method.')
-            potential_compute_method = 'bfe'
-    if potential_compute_method == 'bfe':
-        import agama
-        agama.setUnits(mass=1, length=1, velocity=1)    
-    
     # Setup logger
     logger = logging.getLogger('boundness')
     if verbose and not logger.hasHandlers():
@@ -239,6 +229,16 @@ def compute_iterative_boundness(
         handler.setFormatter(fmt)
         logger.addHandler(handler)
     logger.setLevel(logging.INFO if verbose else logging.WARNING)
+
+    if potential_compute_method == 'tree':
+        try:
+            import pyfalcon
+        except ImportError:
+            logger.info(f'falcON not available for tree method.')
+            potential_compute_method = 'bfe'
+    if potential_compute_method == 'bfe':
+        import agama
+        agama.setUnits(mass=1, length=1, velocity=1)    
 
     # Stack inputs for center determination
     if positions_star is not None and center_on == 'both':
