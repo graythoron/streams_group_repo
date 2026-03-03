@@ -2,7 +2,7 @@
 Welcome to the Stream Team at UWashington's Repo! Here we have many projects that live in all sorts of repos. This repo is for products and analyses used across projects. Take a gander!
 
 ## Pretty Plots
-This folder contains the default plotting methods we use in papers and whatnot.
+The default plotting methods we use in papers and whatnot.
 
 ## AAU Simulations
 This repo is for a project simulating the Atlas-Aliqua Uma stream with a non-static host potential.
@@ -13,5 +13,11 @@ This repo has Arpit's code for N-body simulations and gravity solvers.
 https://github.com/appy2806/Nbody_streams
 
 ## Project Erebor
-This folder is Gray's work on fitting shapes to simulated satellites as they disrupt.
+Gray's work on fitting shapes to simulated satellites as they disrupt.
+Running Erebor requires additional installs:
+    ugali https://github.com/kadrlica/ugali/
+    agama or pyfalcon
 
+
+## To Install
+To install into your python environment 

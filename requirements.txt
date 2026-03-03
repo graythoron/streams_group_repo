@@ -1,0 +1,7 @@
+numpy
+h5py
+matplotlib
+cmasher
+astropy
+scipy
+arviz
