@@ -21,3 +21,7 @@ Running Erebor requires additional installs:
 
 ## To Install
 To install into your python environment 
+```
+pip install -r requirements.txt
+pip install -e .          # editable (development) install
+```
