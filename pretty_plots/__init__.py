@@ -1,9 +1,6 @@
-from .pretty_plot import (
-    plot_pretty, 
-    colorbar
-)
+from .pretty_plot import colorbar, plot_settings
 
 __all__ = [
-    "plot_pretty",
+    "plot_settings",
     "colorbar",
 ]
