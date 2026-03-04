@@ -1,3 +1,57 @@
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "stream_group_repo"
+authors = [
+    {name = "Gray Thoron", email = "gthoron@uw.edu"},
+]
+readme = "README.md"
+license = "MIT"
+dynamic = ["version"]
+description ="The shared code repo for the Shipp research group"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "h5py",
+    "matplotlib",
+    "cmasher",
+    "astropy",
+    "scipy",
+    "arviz",
+    "setuptools>=61.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+line-length = 99
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+# Optional upgrades beyond the default ruff rules
+[tool.ruff.lint]
+select = [
+    "E", # pycodestyle: detect deviations from PEP8 rules
+    "W", # pycodestyle warnings: detect deviations from PEP8 suggestions
+    "F", # Pyflakes: detect code errors, potential bugs
+    "B", # flake8-bugbear: detect antipatterns that can lead to bugs
+    "A", # flake8-builtins: detect overloading python builtins
+    "N", # pep8-naming: detect deviations from PEP naming conventions
+    "I", # isort: better import organization
+    # "D", # pydocstyle: check docstrings
+    # "C4", # flake8-comprehensions: check for code simplifications with comprehensions
+    # "SIM", # flake8-simplify: check for code simplifications
+    # "UP", # pyupgrade: check for syntax improvments in new python versions
+    # "C90", # McCabe complexity
+]
