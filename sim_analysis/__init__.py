@@ -1,7 +1,7 @@
-from .Nbody_reader import (
-    ParticleReader
+from .rotation_matrix import (
+    get_rotation_matrix,
 )
 
 __all__ = [
-    "ParticleReader",
+    "get_rotation_matrix",
 ]
